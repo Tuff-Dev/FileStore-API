@@ -8,6 +8,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import uk.co.tuffdev.filestore.FileDirectoryService;
+import uk.co.tuffdev.filestore.ResourceNotFoundException;
 import uk.co.tuffdev.filestore.StorageService;
 import uk.co.tuffdev.filestore.auth.CurrentUser;
 import uk.co.tuffdev.filestore.auth.UserPrincipal;
@@ -31,17 +32,24 @@ public class FilesController {
         return ResponseEntity.accepted().body(null);
     }
 
-    @GetMapping("/{filename:.+}")
+    @GetMapping()
     @ResponseBody
-    public ResponseEntity<Resource> serveFile(@PathVariable String filename, @CurrentUser UserPrincipal user) {
-        Resource file = storageService.loadAsResource(user.getId(), filename);
+    public ResponseEntity<Resource> serveFile(@RequestParam("file") String filename, @RequestParam("path") String path, @CurrentUser UserPrincipal user) throws ResourceNotFoundException {
+
+//        Resource file = storageService.loadAsResource(user.getId(), filename);
+        Resource file = fileDirectoryService.getFile(filename, path, user.getId());
         return ResponseEntity.ok().header(HttpHeaders.CONTENT_DISPOSITION,
-                "attachment; filename=\"" + file.getFilename() + "\"")
+                "attachment; filename=\"" + filename + "\"")
                 .body(file);
     }
 
     @ExceptionHandler(StorageFileNotFoundException.class)
     public ResponseEntity<?> handleStorageException(StorageFileNotFoundException e) {
+        return ResponseEntity.notFound().build();
+    }
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<?> handleResourceNotFound(ResourceNotFoundException e) {
         return ResponseEntity.notFound().build();
     }
 

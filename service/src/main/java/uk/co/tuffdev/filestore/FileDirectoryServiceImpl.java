@@ -2,9 +2,15 @@ package uk.co.tuffdev.filestore;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -37,25 +43,12 @@ public class FileDirectoryServiceImpl implements FileDirectoryService {
         return iterator.next();
     }
 
-    private UserFolder createUserBaseFolder(String userId) {
-        UserFolder userFolder = new UserFolder();
-        userFolder.setUserId(userId);
-        userFolder.setUserRootDir(true);
-        userFolder.setFiles(new HashSet<>());
-        userFolder.setSubdirectories(new HashSet<>());
-        userFolder.setCreated(LocalDateTime.now());
-        return userFolderRepository.save(userFolder);
-    }
-
     @Override
     public void uploadFile(MultipartFile multipartFile, String userId, String path) {
-
-        UUID newFileId;
-
         // 1 - Load users file structure
         UserFolder userFolder = getUserFiles(userId);
 
-        // 2 - Navigate to path
+        // 2 - Navigate to path & Create any missing directories
         UserFolder workingDir = userFolder;
         String[] folderPath = path.split("/");
         for (String folder: folderPath) {
@@ -93,6 +86,7 @@ public class FileDirectoryServiceImpl implements FileDirectoryService {
 
         newFile.setCreated(LocalDateTime.now());
 
+        // Save actual file
         storageService.save(multipartFile, userId, internalFileName);
 
         if (isNewFile) {
@@ -101,6 +95,42 @@ public class FileDirectoryServiceImpl implements FileDirectoryService {
 
         // 4 - Save structure
         userFolderRepository.save(userFolder);
+    }
+
+    @Override
+    public Resource getFile(String fileName, String path, String userId) throws ResourceNotFoundException {
+
+        // 1. Get user files
+        UserFolder userFolder = getUserFiles(userId);
+
+        // 2. Navigate to path
+        String[] pathSegments = path.split("/");
+
+        UserFolder workingDirectory = userFolder;
+        for(String pathSegment : pathSegments) {
+            Optional<UserFolder> foundDir = workingDirectory.getSubdirectories().stream().filter(f -> f.getFolderName().equals(pathSegment)).findFirst();
+            if (foundDir.isEmpty()) {
+                throw new ResourceNotFoundException("Could not find file: " + fileName + " in folder: " + path);
+            }
+            workingDirectory = foundDir.get();
+        }
+
+        Optional<UserFile> fileOptional = workingDirectory.getFiles().stream().filter(f -> f.getFileName().equals(fileName)).findFirst();
+        if (fileOptional.isEmpty()) {
+            throw new ResourceNotFoundException("Could not find file: " + fileName + " in folder: " + path);
+        }
+        // 3. Load actual file
+        return storageService.loadAsResource(userId, fileOptional.get().getInternalFileReference());
+    }
+
+    private UserFolder createUserBaseFolder(String userId) {
+        UserFolder userFolder = new UserFolder();
+        userFolder.setUserId(userId);
+        userFolder.setUserRootDir(true);
+        userFolder.setFiles(new HashSet<>());
+        userFolder.setSubdirectories(new HashSet<>());
+        userFolder.setCreated(LocalDateTime.now());
+        return userFolderRepository.save(userFolder);
     }
 
     private UserFolder createFolderInline(String folderName) {
