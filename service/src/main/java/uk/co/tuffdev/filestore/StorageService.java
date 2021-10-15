@@ -10,11 +10,11 @@ public interface StorageService {
 
     void init();
 
-    void save(MultipartFile multipartFile);
+    void save(MultipartFile multipartFile, String userId, String targetFileName);
 //    void save(MultipartFile multipartFile, String path, User user);
 
-    Resource loadAsResource(String fileName);
+    Resource loadAsResource(String userId, String fileId);
 
-    Path load(String filename);
+    Path load(String userId, String filename);
 
 }

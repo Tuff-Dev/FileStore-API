@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import uk.co.tuffdev.filestore.config.StorageProperties;
 import uk.co.tuffdev.filestore.exception.StorageException;
+import uk.co.tuffdev.filestore.exception.StorageFileNotFoundException;
 
 import javax.annotation.PostConstruct;
 import java.io.IOException;
@@ -41,18 +42,14 @@ public class FileSystemStorageService implements StorageService {
     }
 
     @Override
-    public void save(MultipartFile file) {
+    public void save(MultipartFile file, String userId, String targetFileName) {
         if (file.isEmpty()) {
             throw new StorageException("Failed to store empty file");
         }
 
-        Path destinationFile = this.rootLocation.resolve(
-                Paths.get(createFileName(file.getOriginalFilename()))
-        ).normalize().toAbsolutePath();
+        Path destinationPath = createPath(this.rootLocation, userId);
 
-        if (!destinationFile.getParent().equals(this.rootLocation.toAbsolutePath())) {
-            throw new StorageException("Cannot store file outside defined base directory.");
-        }
+        Path destinationFile = destinationPath.resolve(targetFileName).normalize().toAbsolutePath();
 
         try (InputStream inputStream = file.getInputStream()) {
             Files.copy(inputStream, destinationFile, StandardCopyOption.REPLACE_EXISTING);
@@ -63,32 +60,42 @@ public class FileSystemStorageService implements StorageService {
     }
 
     @Override
-    public Path load(String filename) {
-        return rootLocation.resolve(filename);
+    public Path load(String userId, String filename) {
+        return rootLocation.resolve(userId + "/" + filename);
     }
 
     @Override
-    public Resource loadAsResource(String fileName) {
+    public Resource loadAsResource(String userId, String fileId) {
         try {
-            Path file = load(fileName);
+            Path file = load(userId, fileId);
             Resource resource = new UrlResource(file.toUri());
             if (resource.exists() || resource.isReadable()) {
                 return resource;
             } else {
-                throw new StorageException("Could not read file: " + fileName);
+                throw new StorageFileNotFoundException("Could not find file: " + fileId);
             }
         } catch (MalformedURLException e) {
-            throw new StorageException("Could not read file: " + fileName, e);
+            throw new StorageFileNotFoundException("Could not read file: " + fileId, e);
         }
     }
 
-    private String createFileName(String existingName) {
-        // TODO: Append uniqueness
+    private Path createPath(Path rootLocation, String userId) {
+        Path destinationPath = rootLocation.resolve(
+                Paths.get(userId)
+        ).normalize().toAbsolutePath();
 
-        if (existingName != null) {
-            return existingName;
+        Path relative = this.rootLocation.toAbsolutePath().relativize(destinationPath);
+
+        if(!relative.startsWith(userId)) {
+            throw new StorageException("Can only store files inside users own directory.");
         }
-        // Generate random name
-        return "test";
+
+        try {
+            Files.createDirectories(destinationPath);
+        } catch (IOException e) {
+            throw new StorageException("Filed to create directory structure.", e);
+        }
+
+        return destinationPath;
     }
 }
