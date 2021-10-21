@@ -51,6 +51,10 @@ public class FileDirectoryServiceImpl implements FileDirectoryService {
         // 2 - Navigate to path & Create any missing directories
         UserFolder workingDir = userFolder;
         String[] folderPath = path.split("/");
+        if (folderPath.length > 0 && folderPath[0].equals("")) {
+            folderPath = Arrays.copyOfRange(folderPath, 1, folderPath.length);
+        }
+
         for (String folder: folderPath) {
             Optional<UserFolder> foundDir = workingDir.getSubdirectories().stream().filter(f -> f.getFolderName().equals(folder)).findFirst();
             if (foundDir.isEmpty()) {
@@ -122,6 +126,12 @@ public class FileDirectoryServiceImpl implements FileDirectoryService {
         // 3. Load actual file
         return storageService.loadAsResource(userId, fileOptional.get().getInternalFileReference());
     }
+
+    @Override
+    public Resource getFileByInternalRef(String fileName, String userId) {
+        return storageService.loadAsResource(userId, fileName);
+    }
+
 
     private UserFolder createUserBaseFolder(String userId) {
         UserFolder userFolder = new UserFolder();

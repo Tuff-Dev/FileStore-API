@@ -24,11 +24,7 @@ public class FileSystemStorageService implements StorageService {
 
     public FileSystemStorageService(StorageProperties storageProperties) {
         this.rootLocation = Paths.get(storageProperties.getLocation());
-    }
-
-    @PostConstruct
-    public void setup() {
-        this.init();
+        init();
     }
 
     @Override

@@ -14,4 +14,6 @@ public interface FileDirectoryService {
     Resource getFile(String fileName, String path, String userId) throws ResourceNotFoundException;
 //    void createFolder(String folderPath, String folderName);
 
+    Resource getFileByInternalRef(String fileRef, String userId) throws ResourceNotFoundException;
+
 }
